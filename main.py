@@ -3,10 +3,21 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
+import requests
 
 app = Flask(__name__)
 
 DEFAULT_STOCKS = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "TATAMOTORS.NS"]
+TELEGRAM_BOT_TOKEN = "8728680154:AAHMZw_KD4XWHTMoTAozEqd3nmkPKiMDBYk"
+CHAT_ID = "8596188242"
+
+def send_telegram_message(message):
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
+        requests.post(url, json=payload)
+    except Exception as e:
+        print("Telegram Error:", e)
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -53,7 +64,7 @@ HTML_TEMPLATE = """
             </tbody>
         </table>
         <div class="footer">
-            <p>Running 24x7 on Render with AI Machine Learning 🚀</p>
+            <p>Running 24x7 on Render with AI Machine Learning & Telegram Alerts 🚀</p>
         </div>
     </div>
 </body>
@@ -63,14 +74,15 @@ HTML_TEMPLATE = """
 @app.route("/")
 def home():
     stock_data = []
+    telegram_msg = "🚨 *ALADIN AI Stock Report* 🚨\n\n"
+    
     for ticker in DEFAULT_STOCKS:
         try:
             stock = yf.Ticker(ticker)
-            df = stock.history(period="1mo") # पिछले 1 महीने का डेटा
+            df = stock.history(period="1mo")
             if not df.empty and len(df) > 5:
                 current_price = round(df['Close'].iloc[-1], 2)
                 
-                # मशीन लर्निंग प्रिडिक्शन (Linear Regression)
                 df['Day'] = np.arange(len(df))
                 X = df[['Day']]
                 y = df['Close']
@@ -78,7 +90,6 @@ def home():
                 model = LinearRegression()
                 model.fit(X, y)
                 
-                # अगले दिन की कीमत का अनुमान
                 next_day = np.array([[len(df)]])
                 predicted_price = round(model.predict(next_day)[0], 2)
                 
@@ -96,6 +107,8 @@ def home():
                     "status": status,
                     "trend_class": trend_class
                 })
+                
+                telegram_msg += f"📌 *{ticker}*\nCurrent: ₹{current_price}\nTarget: ₹{predicted_price}\nStatus: {status}\n\n"
             else:
                 stock_data.append({
                     "symbol": ticker, 
@@ -112,6 +125,9 @@ def home():
                 "status": str(e),
                 "trend_class": ""
             })
+
+    # टेलीग्राम पर रिपोर्ट भेजें
+    send_telegram_message(telegram_msg)
 
     return render_template_string(HTML_TEMPLATE, stock_data=stock_data)
 
