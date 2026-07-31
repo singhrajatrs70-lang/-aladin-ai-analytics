@@ -55,7 +55,11 @@ def run_analytics_loop():
                     send_alert(msg)
             except Exception as e:
                 print(f"Error scanning {symbol}: {e}")
-        time.sleep(300)  # Scan every 5 minutes
+        time.sleep(300)
+
+
+# Background thread start
+Thread(target=run_analytics_loop, daemon=True).start()
 
 
 @app.route("/")
@@ -64,6 +68,5 @@ def home():
 
 
 if __name__ == "__main__":
-    Thread(target=run_analytics_loop).start()
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
