@@ -1,10 +1,11 @@
 from flask import Flask, render_template_string
 import yfinance as yf
 import pandas as pd
+import numpy as np
+from sklearn.linear_model import LinearRegression
 
 app = Flask(__name__)
 
-# कुछ पॉपुलर स्टॉक्स की लिस्ट जिन पर डैशबोर्ड नजर रखेगा
 DEFAULT_STOCKS = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "TATAMOTORS.NS"]
 
 HTML_TEMPLATE = """
@@ -13,28 +14,31 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ALADIN AI Analytics Dashboard</title>
+    <title>ALADIN AI Analytics Dashboard & Predictor</title>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         h1 { color: #2c3e50; text-align: center; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background-color: #2c3e50; color: white; }
         tr:hover { background-color: #f1f1f1; }
         .footer { text-align: center; margin-top: 20px; font-size: 0.9em; color: #777; }
+        .up { color: green; font-weight: bold; }
+        .down { color: red; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>ALADIN AI Analytics Dashboard</h1>
-        <p style="text-align: center; color: #555;">Real-time Stock Market Tracking & AI Engine</p>
+        <p style="text-align: center; color: #555;">AI-Powered Stock Market Tracking & Price Prediction Engine</p>
         <table>
             <thead>
                 <tr>
                     <th>Stock Symbol</th>
                     <th>Current Price (₹)</th>
-                    <th>Status</th>
+                    <th>AI Predicted Next Price (₹)</th>
+                    <th>Trend Status</th>
                 </tr>
             </thead>
             <tbody>
@@ -42,13 +46,14 @@ HTML_TEMPLATE = """
                 <tr>
                     <td><strong>{{ stock.symbol }}</strong></td>
                     <td>₹{{ stock.price }}</td>
-                    <td style="color: green;">{{ stock.status }}</td>
+                    <td>₹{{ stock.predicted_price }}</td>
+                    <td class="{{ stock.trend_class }}">{{ stock.status }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
         <div class="footer">
-            <p>Running 24x7 on Render 🚀</p>
+            <p>Running 24x7 on Render with AI Machine Learning 🚀</p>
         </div>
     </div>
 </body>
@@ -61,17 +66,54 @@ def home():
     for ticker in DEFAULT_STOCKS:
         try:
             stock = yf.Ticker(ticker)
-            todays_data = stock.history(period="1d")
-            if not todays_data.empty:
-                price = round(todays_data['Close'].iloc[-1], 2)
-                stock_data.append({"symbol": ticker, "price": price, "status": "Active / Live"})
+            df = stock.history(period="1mo") # पिछले 1 महीने का डेटा
+            if not df.empty and len(df) > 5:
+                current_price = round(df['Close'].iloc[-1], 2)
+                
+                # मशीन लर्निंग प्रिडिक्शन (Linear Regression)
+                df['Day'] = np.arange(len(df))
+                X = df[['Day']]
+                y = df['Close']
+                
+                model = LinearRegression()
+                model.fit(X, y)
+                
+                # अगले दिन की कीमत का अनुमान
+                next_day = np.array([[len(df)]])
+                predicted_price = round(model.predict(next_day)[0], 2)
+                
+                if predicted_price >= current_price:
+                    status = "Bullish / Up 📈"
+                    trend_class = "up"
+                else:
+                    status = "Bearish / Down 📉"
+                    trend_class = "down"
+                    
+                stock_data.append({
+                    "symbol": ticker, 
+                    "price": current_price, 
+                    "predicted_price": predicted_price,
+                    "status": status,
+                    "trend_class": trend_class
+                })
             else:
-                stock_data.append({"symbol": ticker, "price": "N/A", "status": "No Data"})
+                stock_data.append({
+                    "symbol": ticker, 
+                    "price": "N/A", 
+                    "predicted_price": "N/A",
+                    "status": "No Data",
+                    "trend_class": ""
+                })
         except Exception as e:
-            stock_data.append({"symbol": ticker, "price": "Error", "status": str(e)})
+            stock_data.append({
+                "symbol": ticker, 
+                "price": "Error", 
+                "predicted_price": "Error",
+                "status": str(e),
+                "trend_class": ""
+            })
 
     return render_template_string(HTML_TEMPLATE, stock_data=stock_data)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
-
