@@ -6,3 +6,4 @@ yfinance
 gunicorn
 numpy
 scikit-learn
+apscheduler
